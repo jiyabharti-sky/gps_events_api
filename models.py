@@ -1,0 +1,1 @@
+#  Contains the Event model mapping to the events table in MySQL. 

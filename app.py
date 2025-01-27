@@ -1,0 +1,1 @@
+# Contains the Flask routes (POST /events, GET /events, etc.) plus the DB initialisation.
