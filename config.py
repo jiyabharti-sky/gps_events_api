@@ -1,8 +1,9 @@
 # Holds the DB connection URI
+# This is used to connect to the database
 
 
 DB_USERNAME = "root"
-DB_PASSWORD = "password"
+DB_PASSWORD = "jiyabharti"
 DB_HOST = "localhost"
 DB_PORT = 3306
 DB_NAME = "gps_events"
