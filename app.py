@@ -21,7 +21,7 @@ class Event:
         # db????
         pass
 
-@app.route('/event', methods=['POST'])
+@app.route('/create-event', methods=['POST'])
 def create_event():
     if request.content_type != 'application/json':
         return jsonify({"error": "Content-Type must be application/json"}), 415
@@ -56,10 +56,22 @@ def create_event():
 
         new_event.save()
 
-        return jsonify({"message": "Event created successfully"}), 201
+        return jsonify({"message": "Event created successfully"}), 200
 
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
         return jsonify({"error": f"Failed to create event: {str(e)}"}), 500
+    
+
+@app.route('/get-event', methods=['GET'])
+    
+def get_events():
+        try:
+            events = Event.query.all()
+            events_list = [event.to_dict() for event in events]
+            return jsonify(events_list), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
