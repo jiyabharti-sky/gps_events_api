@@ -1,4 +1,5 @@
 # Holds the DB connection URI
+# This is used to connect to the database
 
 
 DB_USERNAME = "root"

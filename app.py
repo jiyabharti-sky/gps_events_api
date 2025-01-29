@@ -18,7 +18,7 @@ class Event:
         self.is_deleted = is_deleted
 
     def save(self):
-        # Implement the save logic to the database
+        # db????
         pass
 
 @app.route('/event', methods=['POST'])
