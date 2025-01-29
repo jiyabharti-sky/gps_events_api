@@ -97,6 +97,24 @@ def create_event():
 
     except Exception as e:
         return jsonify({"error": f"Failed to create event: {str(e)}"}), 500
+    
+
+@app.route('/event/<string:event_uuid>', methods=['GET'])
+def get_event(event_uuid):
+    """ Retrieve an event using its UUID """
+    try:
+        # Search for the event in the in-memory database
+        event = next((e for e in EVENTS_DB if e.uuid == event_uuid), None)
+
+        if not event:
+            return jsonify({"error": "Event not found"}), 404
+
+        return jsonify(event.to_dict()), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve event: {str(e)}"}), 500
+
+
 
 
 if __name__ == '__main__':
