@@ -43,7 +43,7 @@ class Event:
 @app.route('/create-event', methods=['POST'])
 def create_event():
     if request.content_type != 'application/json':
-        return jsonify({"error": "Content-Type must be application/json"}), 415
+        return jsonify({"error": "Content-Type must be application/json"}), 400
 
     data = request.json
 
@@ -60,7 +60,7 @@ def create_event():
     except ValueError:
         return jsonify({"error": "Invalid UUID format"}), 400
 
-    # Checking here for valid category
+    # checking here for valid category as per the criteria
     allowed_categories = [
         "DeviceOnline", "DeviceOffline", "DeviceHeartbeat", "DevicePairingStarted", 
         "DevicePairingFailed", "DevicePaired", "DeviceUnpairingStarted", "DeviceUnpairingFailed", 
@@ -93,7 +93,7 @@ def create_event():
 
         new_event.save()
 
-        return jsonify({"message": "Event created successfully", "event": new_event.to_dict()}), 201
+        return jsonify({"message": "Event created successfully", "event": new_event.to_dict()}), 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to create event: {str(e)}"}), 500
