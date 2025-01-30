@@ -111,17 +111,28 @@ def create_event():
         received_at = datetime.utcnow()
         now = datetime.utcnow()
 
-        # Correct SQL query with JSON handling
+        # Insert the event into the database
         sql = """INSERT INTO events 
                  (uuid, recorded_at, received_at, created_at, updated_at, category, device_uuid, `metadata`, notification_sent, is_deleted) 
                  VALUES (%s, %s, %s, %s, %s, %s, %s, CAST(%s AS JSON), %s, %s)"""
-        values = (str(uuid_obj), recorded_at, received_at, now, now, 
-                  data["category"], data["device_uuid"], json.dumps(metadata), False, False)
+        values = (
+            str(uuid_obj), 
+            recorded_at, 
+            received_at, 
+            now, 
+            now, 
+            data["category"], 
+            data["device_uuid"], 
+            json.dumps(metadata), 
+            False, 
+            False
+        )
 
         mycursor.execute(sql, values)
         mydb.commit()
 
-        return jsonify({"message": "Event created successfully", "event": {
+        # No success message, just the event data
+        return jsonify({
             "uuid": str(uuid_obj),
             "recorded_at": recorded_at.isoformat(),
             "received_at": received_at.isoformat(),
@@ -132,10 +143,10 @@ def create_event():
             "metadata": metadata,
             "notification_sent": False,
             "is_deleted": False
-        }}), 200
+        }), 200
 
     except Exception as e:
-        return jsonify({"error": f"Failed to create event: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to create event: {str(e)}"}), 422
 
 # get one event
 
@@ -208,22 +219,26 @@ def get_all_events():
     
 @app.route('/delete-event/<string:event_uuid>', methods=['DELETE'])
 def delete_event(event_uuid):
-    """ Permanently delete a selected event by UUID from MySQL """
+    """ Soft delete an existing event by setting is_deleted to true in MySQL """
     try:
-        # Check if the event exists
-        sql_check = "SELECT uuid FROM events WHERE uuid = %s"
+        # Check if the event exists and its current is_deleted status
+        sql_check = "SELECT is_deleted FROM events WHERE uuid = %s"
         mycursor.execute(sql_check, (event_uuid,))
         event = mycursor.fetchone()
 
         if not event:
             return jsonify({"error": "Event not found"}), 404
 
-        # Delete the event from the database
-        sql_delete = "DELETE FROM events WHERE uuid = %s"
-        mycursor.execute(sql_delete, (event_uuid,))
+        # Check if already marked as deleted
+        if event[0]:  # Assuming is_deleted is stored as TINYINT(1) or BOOLEAN
+            return jsonify({"error": "Event is already deleted"}), 422
+
+        # Update is_deleted flag to true
+        sql_update = "UPDATE events SET is_deleted = TRUE, updated_at = NOW() WHERE uuid = %s"
+        mycursor.execute(sql_update, (event_uuid,))
         mydb.commit()
 
-        return jsonify({"message": f"Event {event_uuid} permanently deleted"}), 200
+        return "", 204  # confluence says no message should be returned just success
 
     except Exception as e:
         return jsonify({"error": f"Failed to delete event: {str(e)}"}), 500
@@ -232,67 +247,49 @@ def delete_event(event_uuid):
     
 @app.route('/update-event/<string:event_uuid>', methods=['PUT'])
 def update_event(event_uuid):
-    """ Update an existing event by UUID in MySQL """
+    """ Set notification_sent to true for an event in MySQL """
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Request body is missing or invalid"}), 400
         event_uuid = event_uuid.strip()
 
-        # Check if the event exists
-        sql_check = "SELECT uuid FROM events WHERE uuid = %s"
+        # Check if the event exists and get current notification_sent status
+        sql_check = "SELECT notification_sent FROM events WHERE uuid = %s"
         mycursor.execute(sql_check, (event_uuid,))
         event = mycursor.fetchone()
 
         if not event:
-            return jsonify({"error": f"Event not found: {event_uuid}"}), 404
+            return jsonify({"error": "Event not found"}), 404
 
-        # Allowed categories check
-        if "category" in data:
-            allowed_categories = [
-                "DeviceOnline", "DeviceOffline", "DeviceHeartbeat", "DevicePairingStarted", 
-                "DevicePairingFailed", "DevicePaired", "DeviceUnpairingStarted", "DeviceUnpairingFailed", 
-                "DeviceUnpaired", "DeviceBatteryLow", "DeviceCharging", "DeviceChargingCompleted"
-            ]
-            if data["category"] not in allowed_categories:
-                return jsonify({"error": "Invalid category"}), 400
+        # Check if notification_sent is already true
+        if event[0]:  # Assuming it's stored as TINYINT(1) or BOOLEAN
+            return jsonify({"error": "Notification already sent"}), 422
 
-        # Build dynamic SQL update query
-        update_fields = []
-        values = []
-
-        if "category" in data:
-            update_fields.append("category = %s")
-            values.append(data["category"])
-
-        if "metadata" in data:
-            update_fields.append("metadata = %s")
-            values.append(json.dumps(data["metadata"]))  # Convert dict to JSON string
-
-        if "notification_sent" in data:
-            update_fields.append("notification_sent = %s")
-            values.append(bool(data["notification_sent"]))
-
-        # Always update `updated_at`
-        update_fields.append("updated_at = NOW()")
-
-        if not update_fields:
-            return jsonify({"error": "No valid fields to update"}), 400
-
-        # Execute update query
-        sql_update = f"UPDATE events SET {', '.join(update_fields)} WHERE uuid = %s"
-        values.append(event_uuid)
-
-        mycursor.execute(sql_update, tuple(values))
+        # Update notification_sent to true
+        sql_update = "UPDATE events SET notification_sent = TRUE, updated_at = NOW() WHERE uuid = %s"
+        mycursor.execute(sql_update, (event_uuid,))
         mydb.commit()
 
-        return jsonify({"message": f"Event {event_uuid} updated successfully"}), 200
+        # Retrieve updated event details
+        sql_get = """SELECT uuid, recorded_at, received_at, created_at, updated_at, category, 
+                            device_uuid, metadata, notification_sent, is_deleted 
+                     FROM events WHERE uuid = %s"""
+        mycursor.execute(sql_get, (event_uuid,))
+        updated_event = mycursor.fetchone()
+
+        return jsonify({
+            "uuid": updated_event[0],
+            "recorded_at": updated_event[1].isoformat() if updated_event[1] else None,
+            "received_at": updated_event[2].isoformat() if updated_event[2] else None,
+            "created_at": updated_event[3].isoformat() if updated_event[3] else None,
+            "updated_at": updated_event[4].isoformat() if updated_event[4] else None,
+            "category": updated_event[5],
+            "device_uuid": updated_event[6],
+            "metadata": json.loads(updated_event[7]) if updated_event[7] else {},
+            "notification_sent": bool(updated_event[8]),
+            "is_deleted": bool(updated_event[9])
+        }), 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to update event: {str(e)}"}), 500
-
-
-
 
 if __name__ == '__main__':
     app.run(debug=True)
