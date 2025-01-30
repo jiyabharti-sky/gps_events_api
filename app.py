@@ -130,7 +130,7 @@ def delete_event(event_uuid):
     try:
         global EVENTS_DB  # use global to modify the list
 
-        # Find the event index
+        # Find the event index..dotdot
         event_index = next((index for index, e in enumerate(EVENTS_DB) if e.uuid == event_uuid), None)
 
         if event_index is None:
@@ -143,6 +143,47 @@ def delete_event(event_uuid):
 
     except Exception as e:
         return jsonify({"error": f"Failed to delete event: {str(e)}"}), 500
+    
+
+    
+@app.route('/update-event/<string:event_uuid>', methods=['PUT'])
+def update_event(event_uuid):
+    """ Update an existing event by UUID """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request body is missing or invalid"}), 400
+
+        # find the event by UUID, not Device UUID only event one
+        for event in EVENTS_DB:
+            if str(event.uuid).strip() == event_uuid.strip():
+
+                # Update only provided fields, that way it prevents mistakes
+                if "category" in data:
+                    allowed_categories = [
+                        "DeviceOnline", "DeviceOffline", "DeviceHeartbeat", "DevicePairingStarted", 
+                        "DevicePairingFailed", "DevicePaired", "DeviceUnpairingStarted", "DeviceUnpairingFailed", 
+                        "DeviceUnpaired", "DeviceBatteryLow", "DeviceCharging", "DeviceChargingCompleted"
+                    ]
+                    if data["category"] not in allowed_categories:
+                        return jsonify({"error": "Invalid category"}), 400
+                    event.category = data["category"]
+
+                if "metadata" in data:
+                    event.metadata = data["metadata"]
+
+                if "notification_sent" in data:
+                    event.notification_sent = bool(data["notification_sent"])
+
+                # update timestamp
+                event.updated_at = datetime.utcnow()
+
+                return jsonify({"message": f"Event {event_uuid} updated successfully", "event": event.to_dict()}), 200
+
+        return jsonify({"error": "Event not found"}), 404
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to update event: {str(e)}"}), 500
 
 
 
