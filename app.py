@@ -1,23 +1,68 @@
-from flask import Flask, request, jsonify
-from datetime import datetime
-import uuid as uuid_lib
 import json
+import os
+import boto3
+import mysql.connector
+from flask import Flask, jsonify
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 
-
-
-
-import mysql.connector
-
+# Configure MySQL connection
 mydb = mysql.connector.connect(
-  host="localhost",
-  user="root",
-  password="jiyabharti",
-  database="gps_events"
+    host="localhost",
+    user="root",
+    password="jiyabharti",
+    database="gps_events"
 )
+mycursor = mydb.cursor(dictionary=True)  # Return results as dictionaries
+
+# Configure AWS S3 client
+s3 = boto3.client(
+    "s3"
+)
+print(os.getenv("AWS_REGION"))
+
+print(os.getenv("AWS_SECRET_ACCESS_KEY"))
 
 
+print(os.getenv("AWS_ACCESS_KEY_ID"))
+
+
+
+
+@app.route("/export-events", methods=["GET"])
+def export_events():
+    """ Export event records as a JSON file and upload to AWS S3 """
+    try:
+        # Retrieve all events from the database
+        sql_query = "SELECT * FROM events"
+        mycursor.execute(sql_query)
+        events = mycursor.fetchall()
+
+        if not events:
+            return jsonify({"error": "No events found"}), 404
+
+        # Convert the data to JSON format
+        json_data = json.dumps(events, default=str, indent=4)  # Default=str handles datetime serialization
+
+        # Create a unique file name
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        file_name = f"events_backup_{timestamp}.json"
+
+        # Upload JSON data to S3
+        s3.put_object(Bucket="gpsevents-sky", Key=file_name, Body=json_data, ContentType="application/json")
+
+        # Generate public URL for the uploaded file
+        file_url = f"https://{"gpsevents-sky"}.s3.amazonaws.com/{file_name}"
+
+        return jsonify({"message": "Export successful", "file_url": file_url}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to export events: {str(e)}"}), 500
 
 
 
