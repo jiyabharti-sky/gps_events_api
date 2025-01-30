@@ -113,9 +113,16 @@ def get_event(event_uuid):
 
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve event: {str(e)}"}), 500
+    
 
-
-
+@app.route('/get-events', methods=['GET'])
+def get_all_events():
+    # """ Retrieve all events """
+    try:
+        return jsonify([event.to_dict() for event in EVENTS_DB]), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve events: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
+
