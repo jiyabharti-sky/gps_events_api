@@ -6,15 +6,15 @@ mydb = mysql.connector.connect(
   password="jiyabharti"
 )
 
-# print(mydb)
+print(mydb)
 
 
-# mycursor = mydb.cursor()
+mycursor = mydb.cursor()
 
-# mycursor.execute("SHOW DATABASES")
+mycursor.execute("SHOW DATABASES")
 
-# for x in mycursor:
-#   print(x)
+for x in mycursor:
+  print(x)
 
 
 
