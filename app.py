@@ -122,6 +122,29 @@ def get_all_events():
         return jsonify([event.to_dict() for event in EVENTS_DB]), 200
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve events: {str(e)}"}), 500
+    
+    
+@app.route('/delete-event/<string:event_uuid>', methods=['DELETE'])
+def delete_event(event_uuid):
+    # """ Permanently delete a selected event by UUID """
+    try:
+        global EVENTS_DB  # use global to modify the list
+
+        # Find the event index
+        event_index = next((index for index, e in enumerate(EVENTS_DB) if e.uuid == event_uuid), None)
+
+        if event_index is None:
+            return jsonify({"error": "Event not found"}), 404
+
+        # Remove the event from the list, should not come up in get_eventS
+        del EVENTS_DB[event_index]
+
+        return jsonify({"message": f"Event {event_uuid} permanently deleted"}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete event: {str(e)}"}), 500
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
