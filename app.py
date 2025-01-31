@@ -2,28 +2,32 @@ import json
 import os
 import boto3
 import mysql.connector
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from datetime import datetime
 from dotenv import load_dotenv
+import uuid as uuid_lib
 
-# Load environment variables
+# load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 
-# Configure MySQL connection
+# MySQL connection
 mydb = mysql.connector.connect(
     host="localhost",
     user="root",
     password="jiyabharti",
     database="gps_events"
 )
-mycursor = mydb.cursor(dictionary=True)  # Return results as dictionaries
+mycursor = mydb.cursor(dictionary=True)  
 
-# Configure AWS S3 client
+# sent to AWS S3 client
 s3 = boto3.client(
     "s3"
 )
+
+# to check if the connection is made
+
 print(os.getenv("AWS_REGION"))
 
 print(os.getenv("AWS_SECRET_ACCESS_KEY"))
@@ -38,7 +42,7 @@ print(os.getenv("AWS_ACCESS_KEY_ID"))
 def export_events():
     """ Export event records as a JSON file and upload to AWS S3 """
     try:
-        # Retrieve all events from the database
+        # rtrieve all events from the database
         sql_query = "SELECT * FROM events"
         mycursor.execute(sql_query)
         events = mycursor.fetchall()
@@ -46,17 +50,13 @@ def export_events():
         if not events:
             return jsonify({"error": "No events found"}), 404
 
-        # Convert the data to JSON format
-        json_data = json.dumps(events, default=str, indent=4)  # Default=str handles datetime serialization
+        json_data = json.dumps(events, default=str, indent=4)  
 
-        # Create a unique file name
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         file_name = f"events_backup_{timestamp}.json"
 
-        # Upload JSON data to S3
         s3.put_object(Bucket="gpsevents-sky", Key=file_name, Body=json_data, ContentType="application/json")
 
-        # Generate public URL for the uploaded file
         file_url = f"https://{"gpsevents-sky"}.s3.amazonaws.com/{file_name}"
 
         return jsonify({"message": "Export successful", "file_url": file_url}), 200
@@ -83,7 +83,7 @@ mycursor.execute("""CREATE TABLE IF NOT EXISTS events (
 
 
 
-# In-memory database for now (Replace with actual DB)
+# in-memory database for now
 EVENTS_DB = []
 
 class Event:
@@ -100,7 +100,7 @@ class Event:
         self.is_deleted = is_deleted
 
     def save(self):
-        """ Save event to database (Replace with actual DB logic) """
+        """ Save event to database  """
         EVENTS_DB.append(self)
 
     def to_dict(self):
@@ -126,20 +126,20 @@ def create_event():
 
     data = request.json
 
-    # Validate required fields
+    
     required_fields = ['uuid', 'category', 'device_uuid']
     missing_fields = [field for field in required_fields if field not in data]
 
     if missing_fields:
         return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
 
-    # Ensure UUID is valid
+    
     try:
         uuid_obj = uuid_lib.UUID(data["uuid"], version=4)
     except ValueError:
         return jsonify({"error": "Invalid UUID format"}), 400
 
-    # Validate category
+    
     allowed_categories = [
         "DeviceOnline", "DeviceOffline", "DeviceHeartbeat", "DevicePairingStarted", 
         "DevicePairingFailed", "DevicePaired", "DeviceUnpairingStarted", "DeviceUnpairingFailed", 
@@ -156,7 +156,7 @@ def create_event():
         received_at = datetime.utcnow()
         now = datetime.utcnow()
 
-        # Insert the event into the database
+        # innsert the event into the database
         sql = """INSERT INTO events 
                  (uuid, recorded_at, received_at, created_at, updated_at, category, device_uuid, `metadata`, notification_sent, is_deleted) 
                  VALUES (%s, %s, %s, %s, %s, %s, %s, CAST(%s AS JSON), %s, %s)"""
@@ -176,7 +176,7 @@ def create_event():
         mycursor.execute(sql, values)
         mydb.commit()
 
-        # No success message, just the event data
+        # no success message, just the event data - like confluence
         return jsonify({
             "uuid": str(uuid_obj),
             "recorded_at": recorded_at.isoformat(),
@@ -208,7 +208,6 @@ def get_event(event_uuid):
         if not event:
             return jsonify({"error": "Event not found"}), 404
 
-        # Convert MySQL row to a dictionary
         event_data = {
             "uuid": event[0],
             "recorded_at": event[1].isoformat() if event[1] else None,
@@ -217,7 +216,7 @@ def get_event(event_uuid):
             "updated_at": event[4].isoformat() if event[4] else None,
             "category": event[5],
             "device_uuid": event[6],
-            "metadata": json.loads(event[7]) if event[7] else {},  # Convert JSON string to Python dict
+            "metadata": json.loads(event[7]) if event[7] else {}, 
             "notification_sent": bool(event[8]),
             "is_deleted": bool(event[9])
         }
@@ -239,7 +238,7 @@ def get_all_events():
         mycursor.execute(sql)
         events = mycursor.fetchall()
 
-        # Convert query result into a list of dictionaries
+        # converts query result into a list of dictionaries
         event_list = []
         for event in events:
             event_list.append({
@@ -250,7 +249,7 @@ def get_all_events():
                 "updated_at": event[4].isoformat() if event[4] else None,
                 "category": event[5],
                 "device_uuid": event[6],
-                "metadata": json.loads(event[7]) if event[7] else {},  # Convert JSON string to Python dict
+                "metadata": json.loads(event[7]) if event[7] else {}, 
                 "notification_sent": bool(event[8]),
                 "is_deleted": bool(event[9])
             })
@@ -264,7 +263,7 @@ def get_all_events():
     
 @app.route('/delete-event/<string:event_uuid>', methods=['DELETE'])
 def delete_event(event_uuid):
-    """ Soft delete an existing event by setting is_deleted to true in MySQL """
+    """ soft dleteevent by setting is_deleted to true in MySQL """
     try:
         # Check if the event exists and its current is_deleted status
         sql_check = "SELECT is_deleted FROM events WHERE uuid = %s"
@@ -274,8 +273,8 @@ def delete_event(event_uuid):
         if not event:
             return jsonify({"error": "Event not found"}), 404
 
-        # Check if already marked as deleted
-        if event[0]:  # Assuming is_deleted is stored as TINYINT(1) or BOOLEAN
+        
+        if event[0]:  
             return jsonify({"error": "Event is already deleted"}), 422
 
         # Update is_deleted flag to true
@@ -296,7 +295,7 @@ def update_event(event_uuid):
     try:
         event_uuid = event_uuid.strip()
 
-        # Check if the event exists and get current notification_sent status
+        # check if the event exists and get current notification_sent status
         sql_check = "SELECT notification_sent FROM events WHERE uuid = %s"
         mycursor.execute(sql_check, (event_uuid,))
         event = mycursor.fetchone()
@@ -304,16 +303,16 @@ def update_event(event_uuid):
         if not event:
             return jsonify({"error": "Event not found"}), 404
 
-        # Check if notification_sent is already true
-        if event[0]:  # Assuming it's stored as TINYINT(1) or BOOLEAN
+        # check if notification_sent is already true
+        if event[0]:  
             return jsonify({"error": "Notification already sent"}), 422
 
-        # Update notification_sent to true
+        # update notification_sent to true
         sql_update = "UPDATE events SET notification_sent = TRUE, updated_at = NOW() WHERE uuid = %s"
         mycursor.execute(sql_update, (event_uuid,))
         mydb.commit()
 
-        # Retrieve updated event details
+        # =get updated event details
         sql_get = """SELECT uuid, recorded_at, received_at, created_at, updated_at, category, 
                             device_uuid, metadata, notification_sent, is_deleted 
                      FROM events WHERE uuid = %s"""
